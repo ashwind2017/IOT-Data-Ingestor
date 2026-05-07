@@ -6,8 +6,8 @@ encoded data field, decodes it, and records a passing/failing status per device.
 ## Setup
 
 ```
-git clone <repo> iot
-cd hexmodal-iot
+git clone <repo> cd iot-data-ingestor o
+cd cd iot-data-ingestor o
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
