@@ -54,7 +54,7 @@ A successful response is `201 Created` with the saved payload.
 
 ## Notes
 
-* The `data` field is base64 encrypted. The view decodes it, takes the hex
+* The `data` field is base64 encoded. The view decodes it, takes the hex
   representation, and parses the integer value. A value of `1` is recorded as
   `passing`, anything else is `failing`.
 * `fCnt` is unique per device, not globally. Sending the same `fCnt` for the
