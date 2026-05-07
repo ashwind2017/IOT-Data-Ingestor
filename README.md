@@ -6,7 +6,7 @@ encoded data field, decodes it, and records a passing/failing status per device.
 ## Setup
 
 ```
-git clone <repo> hexmodal-iot
+git clone <repo> iot
 cd hexmodal-iot
 python3 -m venv venv
 source venv/bin/activate
