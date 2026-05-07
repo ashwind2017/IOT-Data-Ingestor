@@ -19,7 +19,7 @@ def create_payload(request):
     payload = serializer.validated_data
     raw = payload['data']
 
-    # data is base64 encrypted; decode to bytes, render as hex,
+    # data is base64 encoded; decode to bytes, render as hex,
     # then read the integer value to decide pass/fail
     try:
         decoded = base64.b64decode(raw, validate=True)
