@@ -1,9 +1,21 @@
+import io
+import json
+
 from django.contrib.auth.models import User
 from django.urls import reverse
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
+from .ingestion import BulkRestIngestion, FileUploadIngestion, RestSingleIngestion, registry
+from .ingestion.pipeline import default_chain, run
 from .models import Device, Payload
+from .transforms import (
+    Base64Decoder,
+    DropRecord,
+    MetadataEnricher,
+    StatusInterpreter,
+    TransformChain,
+)
 
 
 def base_payload(**overrides):
@@ -74,3 +86,83 @@ class PayloadEndpointTests(APITestCase):
         del body['devEUI']
         res = self.client.post(self.url, body, format='json')
         self.assertEqual(res.status_code, 400)
+
+
+# --- New: transform chain ---------------------------------------------
+
+
+class TransformChainTests(APITestCase):
+    def test_chain_applies_in_order(self):
+        chain = TransformChain([Base64Decoder(), StatusInterpreter(), MetadataEnricher()])
+        out = chain.run(base_payload(data='AQ=='))
+        self.assertEqual(out['data_hex'], '01')
+        self.assertEqual(out['data_int'], 1)
+        self.assertEqual(out['status'], 'passing')
+        self.assertEqual(out['gateway_id'], 'g1')
+        self.assertEqual(out['rssi'], -57)
+        self.assertEqual(out['frequency'], 86810000)
+        self.assertIn('ingested_at', out)
+
+    def test_chain_failing_status(self):
+        chain = TransformChain([Base64Decoder(), StatusInterpreter()])
+        out = chain.run(base_payload(data='Ag=='))
+        self.assertEqual(out['status'], 'failing')
+
+    def test_drop_record_short_circuits(self):
+        chain = TransformChain([Base64Decoder(), StatusInterpreter()])
+        with self.assertRaises(DropRecord):
+            chain.run(base_payload(data=''))
+
+
+# --- New: bulk endpoint -----------------------------------------------
+
+
+class BulkEndpointTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='bulker', password='x')
+        self.token = Token.objects.create(user=self.user)
+        self.url = reverse('create_payloads_bulk')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
+
+    def test_bulk_accepts_multiple(self):
+        body = {'payloads': [
+            base_payload(fCnt=1, devEUI='aaaa'),
+            base_payload(fCnt=2, devEUI='bbbb'),
+            base_payload(fCnt=3, devEUI='cccc'),
+        ]}
+        res = self.client.post(self.url, body, format='json')
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.data['accepted'], 3)
+        self.assertEqual(res.data['rejected'], 0)
+
+    def test_bulk_partial_success_returns_207(self):
+        body = {'payloads': [
+            base_payload(fCnt=1, devEUI='aaaa'),
+            base_payload(fCnt=1, devEUI='aaaa'),  # duplicate
+        ]}
+        res = self.client.post(self.url, body, format='json')
+        self.assertEqual(res.status_code, 207)
+        self.assertEqual(res.data['accepted'], 1)
+        self.assertEqual(res.data['rejected'], 1)
+
+
+# --- New: file upload -------------------------------------------------
+
+
+class FileUploadTests(APITestCase):
+    def test_ndjson_file_ingestion(self):
+        body = '\n'.join(json.dumps(base_payload(fCnt=i, devEUI=f'dev{i}')) for i in range(5))
+        source = FileUploadIngestion(io.BytesIO(body.encode('utf-8')))
+        result = run(source)
+        self.assertEqual(result.accepted, 5)
+        self.assertEqual(Device.objects.count(), 5)
+
+
+# --- New: registry ----------------------------------------------------
+
+
+class RegistryTests(APITestCase):
+    def test_known_sources_registered(self):
+        self.assertIn('rest_single', registry)
+        self.assertIn('bulk_rest', registry)
+        self.assertIn('file_upload', registry)
