@@ -42,6 +42,7 @@ if USE_SQLITE:
         'rest_framework',
         'rest_framework.authtoken',
         'devices',
+        'orchestrator',
     ]
 else:
     SHARED_APPS = [
@@ -56,6 +57,7 @@ else:
         'django.contrib.staticfiles',
         'rest_framework',
         'rest_framework.authtoken',
+        'orchestrator',
     ]
 
     TENANT_APPS = [
