@@ -7,3 +7,11 @@ class PayloadInputSerializer(serializers.Serializer):
     data = serializers.CharField(allow_blank=False)
     rxInfo = serializers.ListField(required=False, default=list)
     txInfo = serializers.DictField(required=False, default=dict)
+
+
+class BulkPayloadInputSerializer(serializers.Serializer):
+    payloads = serializers.ListField(
+        child=PayloadInputSerializer(),
+        min_length=1,
+        max_length=1000,
+    )
